@@ -12,6 +12,8 @@ class (GenPatch d) => Patchable d where
     merge :: Mod d -> Mod d -> (P d, P d)
     -- may turn out that the mod doesn't do anything
     inverse :: Mod d -> P d
+    -- optimise patches
+    optimise :: P d -> P d
 
 class GenPatch d where
     genPatch :: d -> Gen (P d)
@@ -57,3 +59,12 @@ comm1 a b = (b', a')
   where
     (b', _) = b >< inv a
     (_, a') = b' >< a
+
+-- helper for writing optimisers
+optimiseWith :: (Mod d -> Mod d -> P d) -> (Mod d -> P d) -> P d -> P d
+optimiseWith f g p = optimiseWith' (p >>= g)
+  where
+    optimiseWith' [] = []
+    optimiseWith' (a : as) = case optimiseWith' as of
+      [] -> [a]
+      (b : bs) -> f a b ++ bs
