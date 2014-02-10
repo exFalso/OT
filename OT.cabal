@@ -1,0 +1,48 @@
+name:               OT
+version:            0.1
+category:           Revision Control
+synopsis:           Operation Transformation with patch merging
+description:
+    Maybe this is not operation transformation any more.
+stability:          experimental
+author:             Andras Slemmer
+homepage:           https://github.com/exFalso/OT
+bug-reports:        https://github.com/exFalso/OT/issues
+cabal-version:      >= 1.8
+build-type:         Simple
+
+source-repository head
+  type:             git
+  location:         https://github.com/exFalso/OT
+
+
+executable OT_test
+
+  main-is:          Test.hs
+
+  other-modules:
+                    Patchable
+                    Tagable
+                    Doc
+                    Laws
+                    OT
+                    MD5Tag
+                    IntList
+
+  build-depends:
+                    base < 5
+                  , QuickCheck
+                  , binary
+                  , bytestring
+                  , cryptohash
+                  , byteable
+
+  ghc-options:
+                    -Wall
+                    -fno-warn-incomplete-patterns
+                    -fno-warn-name-shadowing
+                    -fno-warn-missing-signatures
+                    -fno-warn-orphans
+                    -fno-warn-type-defaults
+                    -threaded
+                    -rtsopts

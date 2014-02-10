@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DoAndIfThenElse #-}
 module IntList where
 
 import MD5Tag

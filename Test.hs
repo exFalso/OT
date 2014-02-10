@@ -1,5 +1,3 @@
-module Test where
-
 import IntList
 import Laws
 
