@@ -1,14 +1,14 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, PolyKinds, DataKinds #-}
 module Tagable where
 
 import Patchable
 
-class (Patchable d, Ord (Tag d)) => Tagable d where
-    data Tag d
+class (Patchable doc, Ord (Tag doc)) => Tagable doc where
+    data Tag doc
     -- tag of empty document
-    initTag :: Tag d
-    -- alpha id t = t
-    alpha :: P d -> Tag d -> Tag d
+    initTag :: Tag doc
+    -- -- alpha id t = t
+    alpha :: P doc a b -> Tag doc -> Tag doc
     -- first has precedence
-    beta :: Tag d -> Tag d -> Tag d
+    beta :: Tag doc -> Tag doc -> Tag doc
 

@@ -1,70 +1,63 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, GADTs, PolyKinds, DataKinds, TypeOperators #-}
 module Patchable where
 
 import Test.QuickCheck (Gen)
 
-type P d = [Mod d]
+data EitherS (a :: k0 -> *) (b :: k1 -> *) (s :: Either k0 k1) where
+  LeftS :: a s -> EitherS a b (Left s)
+  RightS :: b s -> EitherS a b (Right s)
 
-class (GenPatch d) => Patchable d where
-    data Mod d
-    act :: Mod d -> d -> d
+data MuS f s where
+  RollS :: f (MuS f) s -> MuS f s
+
+data P doc a b where
+  PNil :: P doc a a
+  PCons :: Mod doc a b -> P doc b c -> P doc a c
+
+data Some f where
+  Some :: f a -> Some f
+
+data MergeRes doc b c where
+  MergeRes :: P doc c d -> P doc b d -> MergeRes doc b c
+
+class Patchable doc where
+    data Mod doc a b
+    act :: Mod doc a b -> doc a -> doc b
     -- first arg has precedence
-    merge :: Mod d -> Mod d -> (P d, P d)
+    merge :: Mod doc a b -> Mod doc a c -> MergeRes doc b c
     -- may turn out that the mod doesn't do anything
-    inverse :: Mod d -> P d
-    -- optimise patches
-    optimise :: P d -> P d
+    inverse :: Mod doc a b -> P doc b a
 
-class GenPatch d where
-    genPatch :: d -> Gen (P d)
+-- class GenPatch doc where
+--     genPatch :: d -> Gen (P d)
 
-(.*) :: P d -> P d -> P d
-(.*) = (++)
+(.*) :: P doc a b -> P doc b c -> P doc a c
+PNil .* b = b
+(PCons m a) .* b = PCons m (a .* b)
 
-inv :: Patchable d => P d -> P d
-inv p = reverse $ concatMap inverse p
+inv :: Patchable doc => P doc a b -> P doc b a
+inv PNil = PNil
+inv (PCons m a) = inv a .* inverse m
 
-action :: Patchable d => P d -> d -> d
-action = foldr (flip (.)) id . map act
+action :: Patchable doc => P doc a b -> doc a -> doc b
+action PNil = id
+action (PCons m a) = action a . act m
 
 -- a >< b = (a x b, b x a) with 'a' having precedence
 -- sry couldnt come up with "more descriptive" names
-(><) :: Patchable d => P d -> P d -> (P d, P d)
-[] >< b = ([], b)
-b >< [] = (b, [])
-(a0 : a1) >< (b0 : b1) = (a0a1b0b1, b0b1a0a1)
-  where
-    (a0b0, b0a0) = a0 `merge` b0
-    (a1b0a0, b0a0a1) = a1 >< b0a0
-    (a0b0b1, b1a0b0) = a0b0 >< b1
-    (a1b0a0b1a0b0, b1a0b0a1b0a0) = a1b0a0 >< b1a0b0
-    (a0a1b0b1, b0b1a0a1) = (a0b0b1 .* a1b0a0b1a0b0, b0a0a1 .* b1a0b0a1b0a0)
+(><) :: Patchable doc => P doc a b -> P doc a c -> MergeRes doc b c
+PNil >< b = MergeRes PNil b
+b >< PNil = MergeRes b PNil
+PCons a0 a1 >< PCons b0 b1 =
+  case a0 `merge` b0 of
+    MergeRes a0b0 b0a0 -> case a1 >< b0a0 of
+      MergeRes a1b0a0 b0a0a1 -> case a0b0 >< b1 of
+        MergeRes a0b0b1 b1a0b0 -> case a1b0a0 >< b1a0b0 of
+          MergeRes a1b0a0b1a0b0 b1a0b0a1b0a0 -> MergeRes (a0b0b1 .* a1b0a0b1a0b0) (b0a0a1 .* b1a0b0a1b0a0)
 
-_x :: Patchable d => P d -> P d -> P d
-_x a b = fst $ a >< b
+-- _x :: Patchable doc => P doc -> P doc -> P d
+-- _x a b = fst $ a >< b
 
-x_ :: Patchable d => P d -> P d -> P d
-x_ a b = snd $ b >< a
+-- x_ :: Patchable doc => P doc -> P doc -> P d
+-- x_ a b = snd $ b >< a
 
--- comm a b = (b', a') -> a .* b = b' .* a'
--- there are two definitions, both are commutations
-comm0 :: Patchable d => P d -> P d -> (P d, P d)
-comm0 a b = (b', a')
-  where
-    (_, b') = inv a >< b
-    (a', _) = a >< b'
-
-comm1 :: Patchable d => P d -> P d -> (P d, P d)
-comm1 a b = (b', a')
-  where
-    (b', _) = b >< inv a
-    (_, a') = b' >< a
-
--- helper for writing optimisers
-optimiseWith :: (Mod d -> Mod d -> P d) -> (Mod d -> P d) -> P d -> P d
-optimiseWith f g p = optimiseWith' (p >>= g)
-  where
-    optimiseWith' [] = []
-    optimiseWith' (a : as) = case optimiseWith' as of
-      [] -> [a]
-      (b : bs) -> f a b ++ bs
