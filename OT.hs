@@ -19,12 +19,17 @@ data ClientError = ConsistencyError
 
 type History d = M.Map (Tag d) (Maybe (Arc d))
 
+{-
+invariant properties:
+- branchPoint + branch  -->  head
+- headTag is tag of head
+-}
 data ClientState d = ClientState
-    { branch :: [Arc d]
-    , history :: History d
-    , branchPoint :: Tag d
-    , headTag :: Tag d
-    , head :: d
+    { branch :: [Arc d]      -- client's modifications, not acknowledged yet
+    , history :: History d   -- the client built this from server messages
+    , branchPoint :: Tag d   -- this is the point where local modifications started happening
+    , headTag :: Tag d       -- tag of head
+    , head :: d              -- this is the current state of the document with local modifications (end of branch)
     }
 
 initClientState :: (Doc d) => ClientState d
@@ -38,6 +43,7 @@ inconsistent = Left ConsistencyError
 mClient :: Maybe a -> Client a
 mClient = maybe inconsistent Right
 
+-- given a tag and a history, path gives an arc-sequence until the end of history
 path :: Doc d => Tag d -> History d -> Client [Arc d]
 path x h = do
   node <- mClient $ M.lookup x h

@@ -3,12 +3,14 @@ module Patchable where
 
 import Test.QuickCheck (Gen)
 
+-- [a, b, c] means first a, then b and c
 type P d = [Mod d]
 
 class (GenPatch d) => Patchable d where
     data Mod d
     act :: Mod d -> d -> d
     -- first arg has precedence
+    -- let (a_xb,bx_a) = merge a b   in   ... 
     merge :: Mod d -> Mod d -> (P d, P d)
     -- may turn out that the mod doesn't do anything
     inverse :: Mod d -> P d
@@ -18,11 +20,12 @@ class (GenPatch d) => Patchable d where
 class GenPatch d where
     genPatch :: d -> Gen (P d)
 
+-- groupoid composition
 (.*) :: P d -> P d -> P d
 (.*) = (++)
 
 inv :: Patchable d => P d -> P d
-inv p = reverse $ concatMap inverse p
+inv p = concatMap inverse $ reverse p
 
 action :: Patchable d => P d -> d -> d
 action = foldr (flip (.)) id . map act
