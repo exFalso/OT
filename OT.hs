@@ -21,9 +21,18 @@ data ClientState doc t head = ClientState
     , headTag :: CTag doc t head
     }
 
-initClientState :: (Doc doc, InitShape 'Proxy ~ t) => Some (ClientState doc t)
-initClientState = case initHistory initTag of
-  (initHist, Some head) -> Some (ClientState initHist (PathNil head) head)
+data SomeClientState doc where
+  SomeClientState :: ClientState doc t head -> SomeClientState doc
+
+clientState :: ClientState doc t head -> SomeClientState doc
+clientState = SomeClientState
+
+asd :: History doc t -> CTag doc t head -> ClientState doc t head
+asd i h = ClientState i (PathNil h) h
+
+initClientState :: forall doc. (Doc doc) => SomeClientState doc
+initClientState = case (initHistory (initTag :: Tag doc) :: InitHistory doc) of
+  InitHistory initHist head -> clientState $ asd initHist head
 
 type Client a = Either ClientError a
 

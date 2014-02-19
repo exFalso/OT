@@ -3,7 +3,6 @@ module History where
 
 import Patchable
 import Tagable
-import Doc
 import qualified Data.Map as M
 import Control.Monad
 import Data.Maybe
@@ -26,8 +25,11 @@ data Path doc t s where
   PathNil :: CTag doc t s -> Path doc t s
   PathCons :: CTag doc t a -> P doc a b -> Path doc t b -> Path doc t a
 
-initHistory :: (InitShape 'Proxy ~ t) => Tag doc -> (History doc t, Some (CTag doc t))
-initHistory t = (History (M.singleton t Nothing), Some (CTag t))
+data InitHistory doc where
+  InitHistory :: History doc t -> CTag doc t s -> InitHistory doc
+
+initHistory :: Tag doc -> InitHistory doc
+initHistory t = InitHistory (History (M.singleton t Nothing)) (CTag t)
 
 -- returns a Checked Tag given a raw one. The shape it points to is hidden.
 checkTag :: (Ord (Tag doc)) => Tag doc -> History doc t -> Maybe (Some (CTag doc t))

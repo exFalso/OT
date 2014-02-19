@@ -6,6 +6,8 @@ import Tagable
 
 import Test.QuickCheck
 
+data AProxy k = AProxy
+
 data Proxy (k :: *) = Proxy
 
 class Shape (a :: Proxy k) where

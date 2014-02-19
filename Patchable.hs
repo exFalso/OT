@@ -1,9 +1,10 @@
-{-# LANGUAGE TypeFamilies, GADTs, PolyKinds, DataKinds, TypeOperators #-}
+{-# LANGUAGE TypeFamilies, GADTs, PolyKinds, DataKinds, TypeOperators, RankNTypes, MultiParamTypeClasses, FlexibleContexts, ScopedTypeVariables, InstanceSigs #-}
 module Patchable where
 
 import Test.QuickCheck (Gen)
+import Data.Constraint
 
-data EitherS (a :: k0 -> *) (b :: k1 -> *) (s :: Either k0 k1) where
+data EitherS a b s where
   LeftS :: a s -> EitherS a b (Left s)
   RightS :: b s -> EitherS a b (Right s)
 
@@ -28,8 +29,50 @@ class Patchable doc where
     -- may turn out that the mod doesn't do anything
     inverse :: Mod doc a b -> P doc b a
 
--- class GenPatch doc where
---     genPatch :: d -> Gen (P d)
+instance (Patchable x, Patchable y) => Patchable (EitherS x y) where
+  data Mod (EitherS x y) a b where
+    LeftMod :: Mod x a b -> Mod (EitherS x y) (Left a) (Left b)
+    RightMod :: Mod y a b -> Mod (EitherS x y) (Right a) (Right b)
+
+  act (LeftMod m) (LeftS d) = LeftS (act m d)
+  act (RightMod m) (RightS d) = RightS (act m d)
+
+  merge (LeftMod m0) (LeftMod m1) = case merge m0 m1 of
+    MergeRes p0 p1 -> MergeRes (lefty p0) (lefty p1)
+  merge (RightMod m0) (RightMod m1) = case merge m0 m1 of
+    MergeRes p0 p1 -> MergeRes (righty p0) (righty p1)
+
+  inverse (LeftMod m) = lefty (inverse m)
+  inverse (RightMod m) = righty (inverse m)
+
+class PatchableF f where
+  entailsP :: forall doc. Dict (Patchable doc) -> Dict (Patchable (f doc))
+
+instance (PatchableF f) => Patchable (MuS f) where
+  data Mod (MuS f) a b = MuMod (Mod (f (MuS f)) a b)
+
+  act (MuMod m) (RollS f) = case entailsP Dict :: Dict (Patchable (f (MuS f))) of
+    Dict -> RollS (act m f)
+
+  merge (MuMod m0) (MuMod m1) = case entailsP Dict :: Dict (Patchable (f (MuS f))) of
+    Dict -> case merge m0 m1 of
+      MergeRes p0 p1 -> MergeRes (muy p0) (muy p1)
+
+  inverse (MuMod m) = case entailsP Dict :: Dict (Patchable (f (MuS f))) of
+    Dict -> muy (inverse m)
+
+-- these are just simple maps but the types cannot be inferred
+lefty :: P x a b -> P (EitherS x y) (Left a) (Left b)
+lefty PNil = PNil
+lefty (PCons m p) = PCons (LeftMod m) (lefty p)
+
+righty :: P y a b -> P (EitherS x y) (Right a) (Right b)
+righty PNil = PNil
+righty (PCons m p) = PCons (RightMod m) (righty p)
+
+muy :: P (f (MuS f)) a b -> P (MuS f) a b
+muy PNil = PNil
+muy (PCons m p) = PCons (MuMod m) (muy p)
 
 (.*) :: P doc a b -> P doc b c -> P doc a c
 PNil .* b = b
