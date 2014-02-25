@@ -36,6 +36,7 @@ executable OT_test
                   , bytestring
                   , cryptohash
                   , byteable
+				  , constraints
 
   ghc-options:
                     -Wall

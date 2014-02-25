@@ -1,12 +1,13 @@
-{-# LANGUAGE TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, FlexibleContexts, RankNTypes, TypeOperators, ScopedTypeVariables, FlexibleInstances, GeneralizedNewtypeDeriving #-}
 module Patchable where
 
+import Data.Constraint
 import Test.QuickCheck (Gen)
 
 -- [a, b, c] means first a, then b and c
 type P d = [Mod d]
 
-class (GenPatch d) => Patchable d where
+class Patchable d where
     data Mod d
     act :: Mod d -> d -> d
     -- first arg has precedence
@@ -14,11 +15,39 @@ class (GenPatch d) => Patchable d where
     merge :: Mod d -> Mod d -> (P d, P d)
     -- may turn out that the mod doesn't do anything
     inverse :: Mod d -> P d
-    -- optimise patches
-    optimise :: P d -> P d
+
+data Mu f = Roll (f (Mu f))
+
+class PatchableF f where
+  entailsP :: forall a. Patchable a :- Patchable (f a)
+
+instance PatchableF f => Patchable (Mu f) where
+  data Mod (Mu f) = ModMu (Mod (f (Mu f)))
+
+  merge (ModMu m0) (ModMu m1) = case entailsP :: Patchable (Mu f) :- Patchable (f (Mu f)) of
+    Sub Dict -> (\(a, b) -> (map ModMu a, map ModMu b)) (merge m0 m1)
+
+  inverse (ModMu f) = case entailsP :: Patchable (Mu f) :- Patchable (f (Mu f)) of
+    Sub Dict -> map ModMu $ inverse f
+
+  act (ModMu m) (Roll f) = case entailsP :: Patchable (Mu f) :- Patchable (f (Mu f)) of
+    Sub Dict -> Roll $ act m f
 
 class GenPatch d where
     genPatch :: d -> Gen (P d)
+
+instance (Patchable a, Patchable b) => Patchable (Either a b) where
+instance (Patchable a, Patchable b) => Patchable (a, b) where
+instance Patchable () where
+
+newtype ListF a b = ListF (Either () (a, b))
+
+instance (Patchable b) => Patchable (ListF a b) where
+
+instance PatchableF (ListF a) where
+  entailsP = Sub Dict
+
+type List a = Mu (ListF a)
 
 -- groupoid composition
 (.*) :: P d -> P d -> P d
@@ -62,12 +91,3 @@ comm1 a b = (b', a')
   where
     (b', _) = b >< inv a
     (_, a') = b' >< a
-
--- helper for writing optimisers
-optimiseWith :: (Mod d -> Mod d -> P d) -> (Mod d -> P d) -> P d -> P d
-optimiseWith f g p = optimiseWith' (p >>= g)
-  where
-    optimiseWith' [] = []
-    optimiseWith' (a : as) = case optimiseWith' as of
-      [] -> [a]
-      (b : bs) -> f a b ++ bs

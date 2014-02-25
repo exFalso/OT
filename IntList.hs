@@ -66,19 +66,6 @@ instance Patchable IntList where
       | i0 < i1 = ([Remove i0 (Just a)], [Remove (i1 - 1) (Just b)])
       | otherwise = ([Remove (i0 - 1) (Just a)], [Remove i1 (Just b)])
 
-    optimise = optimiseWith opt2 opt1
-      where
-        opt1 (Insert _ Nothing) = []
-        opt1 (Remove _ Nothing) = []
-        opt1 a = [a]
-        opt2 i@(Insert a x) r@(Remove b y)
-          | a == b = if x /= y
-                     then error "Invalid Remove mod"
-                     else [i, r]
-        opt2 (Remove b y) (Insert a x)
-          | a == b && x == y = []
-        opt2 a b = [a, b]
-
 
 serialise :: Mod IntList -> Bin.Put
 serialise (Insert i ma) = do
